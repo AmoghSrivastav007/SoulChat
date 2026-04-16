@@ -1,0 +1,91 @@
+name: CI / Deploy SoulChat
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  # ── Type-check + lint ────────────────────────────────────────────────────────
+  check:
+    name: Type-check & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check (server)
+        run: npm run type-check --workspace=apps/server
+
+      - name: Type-check (web)
+        run: npm run type-check --workspace=apps/web
+
+      - name: Lint (web)
+        run: npm run lint --workspace=apps/web
+
+  # ── Deploy frontend (Vercel) ─────────────────────────────────────────────────
+  deploy-frontend:
+    name: Deploy Web → Vercel
+    needs: check
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: "--prod"
+          working-directory: apps/web
+
+  # ── Deploy backend (Railway) ─────────────────────────────────────────────────
+  deploy-backend:
+    name: Deploy Server → Railway
+    needs: check
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy to Railway
+        run: railway up --service soulchat-server --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # ── Run Prisma migrations (production) ───────────────────────────────────────
+  migrate:
+    name: Prisma Migrate (prod)
+    needs: deploy-backend
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --workspace=apps/server
+
+      - name: Run migrations
+        run: npx prisma migrate deploy --schema apps/server/prisma/schema.prisma
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

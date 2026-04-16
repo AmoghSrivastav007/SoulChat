@@ -1,0 +1,78 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: soulchat
+      POSTGRES_USER: soulchat
+      POSTGRES_PASSWORD: soulchat_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U soulchat"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.7
+    ports:
+      - "7700:7700"
+    environment:
+      MEILI_MASTER_KEY: soulchat_search_key
+      MEILI_ENV: development
+    volumes:
+      - meili_data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://soulchat:soulchat_dev@postgres:5432/soulchat
+      REDIS_URL: redis://redis:6379
+      MEILI_URL: http://meilisearch:7700
+      MEILI_MASTER_KEY: soulchat_search_key
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      JWT_ACCESS_SECRET: dev_access_secret_change_in_prod
+      JWT_REFRESH_SECRET: dev_refresh_secret_change_in_prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    volumes:
+      - ./apps/server/src:/app/src
+    command: >
+      sh -c "npx prisma migrate deploy --schema prisma/schema.prisma &&
+             npx prisma db seed &&
+             npm run dev"
+
+volumes:
+  postgres_data:
+  meili_data:

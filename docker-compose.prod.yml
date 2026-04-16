@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-soulchat}
+      POSTGRES_USER: ${POSTGRES_USER:-soulchat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-soulchat}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.7
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_ENV: production
+    volumes:
+      - meili_data:/meili_data
+    restart: unless-stopped
+
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    env_file:
+      - .env.production
+    ports:
+      - "4000:4000"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "npx prisma migrate deploy --schema prisma/schema.prisma && node dist/index.js"
+
+volumes:
+  postgres_data:
+  redis_data:
+  meili_data:

@@ -1,0 +1,1 @@
+export const COPILOT_PROMPT = `You are a message rewriting assistant. Given a chat message draft and conversation context, rewrite it in 3 different tones. Return ONLY valid JSON.\n\nContext: {context}\nDraft: {draft}\n\nReturn: { formal: string, warmer: string, funnier: string }`;

@@ -1,0 +1,298 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  passwordHash      String?
+  username          String    @unique
+  displayName       String
+  avatarUrl         String?
+  avatarConfig      Json?
+  bio               String?
+  moodWord          String?
+  currentSong       String?
+  trustScore        Int       @default(0)
+  isHumanVerified   Boolean   @default(false)
+  currentPersona    String    @default("default")
+  personas          Json?
+  soulCardConfig    Json?
+  focusModeEnabled  Boolean   @default(false)
+  emotionPrefs      Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  sentMessages      Message[]           @relation("SentMessages")
+  chatMembers       ChatMember[]
+  questProgress     QuestProgress[]
+  trustTokensSent   TrustTransaction[]  @relation("Sender")
+  trustTokensRecvd  TrustTransaction[]  @relation("Receiver")
+  timeCapsules      TimeCapsule[]
+  memories          Memory[]
+  relationships     RelationshipScore[] @relation("UserA")
+  relationshipsOf   RelationshipScore[] @relation("UserB")
+  gameResults       GameResult[]
+  pushSubscriptions PushSubscription[]
+  xp                UserXP?
+}
+
+model Chat {
+  id            String      @id @default(cuid())
+  type          ChatType    @default(DIRECT)
+  name          String?
+  description   String?
+  avatarUrl     String?
+  isEncrypted   Boolean     @default(true)
+  roomConfig    Json?
+  themeConfig   Json?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  members       ChatMember[]
+  messages      Message[]
+  memories      Memory[]
+  timeCapsules  TimeCapsule[]
+  games         GameSession[]
+}
+
+enum ChatType {
+  DIRECT
+  GROUP
+  SPATIAL_ROOM
+  STORY_CANVAS
+}
+
+model ChatMember {
+  id          String     @id @default(cuid())
+  chatId      String
+  userId      String
+  role        MemberRole @default(MEMBER)
+  nickname    String?
+  joinedAt    DateTime   @default(now())
+  lastRead    DateTime   @default(now())
+  isMuted     Boolean    @default(false)
+
+  chat        Chat       @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId])
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Message {
+  id              String      @id @default(cuid())
+  chatId          String
+  senderId        String
+  content         String?
+  type            MessageType @default(TEXT)
+  mediaUrl        String?
+  mediaType       String?
+  replyToId       String?
+  isDeleted       Boolean     @default(false)
+  isEdited        Boolean     @default(false)
+  emotionTag      String?
+  emotionScore    Float?
+  aiRewritten     Boolean     @default(false)
+  originalContent String?
+  expiresAt       DateTime?
+  metadata        Json?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  chat            Chat        @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender          User        @relation("SentMessages", fields: [senderId], references: [id])
+  replyTo         Message?    @relation("Replies", fields: [replyToId], references: [id])
+  replies         Message[]   @relation("Replies")
+  reactions       Reaction[]
+}
+
+enum MessageType {
+  TEXT
+  VOICE
+  IMAGE
+  VIDEO
+  FILE
+  AR_OBJECT
+  GAME_MOVE
+  STORY_SEGMENT
+  SYSTEM
+  CONDITIONAL
+  TIME_CAPSULE
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+}
+
+model TimeCapsule {
+  id            String    @id @default(cuid())
+  senderId      String
+  chatId        String?
+  content       String
+  mediaUrls     String[]
+  voiceUrl      String?
+  deliverAt     DateTime
+  condition     String?
+  isDelivered   Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+
+  sender        User      @relation(fields: [senderId], references: [id])
+  chat          Chat?     @relation(fields: [chatId], references: [id])
+}
+
+model Memory {
+  id          String     @id @default(cuid())
+  chatId      String
+  createdById String
+  title       String
+  content     String?
+  mediaUrls   String[]
+  type        MemoryType @default(AI_CURATED)
+  isStarred   Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+
+  chat        Chat       @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  createdBy   User       @relation(fields: [createdById], references: [id])
+}
+
+enum MemoryType {
+  AI_CURATED
+  USER_PINNED
+  MILESTONE
+  PHOTO_COLLAGE
+}
+
+model RelationshipScore {
+  id              String   @id @default(cuid())
+  userAId         String
+  userBId         String
+  score           Float    @default(50.0)
+  frequencyScore  Float    @default(0)
+  positivityScore Float    @default(0)
+  engagementScore Float    @default(0)
+  lastUpdated     DateTime @default(now())
+
+  userA           User     @relation("UserA", fields: [userAId], references: [id])
+  userB           User     @relation("UserB", fields: [userBId], references: [id])
+
+  @@unique([userAId, userBId])
+}
+
+model TrustTransaction {
+  id          String   @id @default(cuid())
+  senderId    String
+  receiverId  String
+  amount      Int
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  sender      User     @relation("Sender", fields: [senderId], references: [id])
+  receiver    User     @relation("Receiver", fields: [receiverId], references: [id])
+}
+
+model Quest {
+  id          String    @id @default(cuid())
+  title       String
+  description String
+  type        QuestType
+  xpReward    Int
+  tokenReward Int
+  isDaily     Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  progress    QuestProgress[]
+}
+
+enum QuestType {
+  SEND_VOICE
+  REACT_TO_MESSAGES
+  REVIVE_OLD_CHAT
+  SEND_TIME_CAPSULE
+  COMPLETE_STORY
+  PLAY_GAME
+  SHARE_MEMORY
+}
+
+model QuestProgress {
+  id          String      @id @default(cuid())
+  userId      String
+  questId     String
+  status      QuestStatus @default(IN_PROGRESS)
+  completedAt DateTime?
+  date        DateTime    @default(now())
+
+  user        User        @relation(fields: [userId], references: [id])
+  quest       Quest       @relation(fields: [questId], references: [id])
+
+  @@unique([userId, questId, date])
+}
+
+enum QuestStatus {
+  IN_PROGRESS
+  COMPLETED
+  CLAIMED
+}
+
+model GameSession {
+  id        String      @id @default(cuid())
+  chatId    String
+  gameType  String
+  state     Json
+  status    String      @default("active")
+  createdAt DateTime    @default(now())
+
+  chat      Chat        @relation(fields: [chatId], references: [id])
+  results   GameResult[]
+}
+
+model GameResult {
+  id        String      @id @default(cuid())
+  sessionId String
+  userId    String
+  score     Int
+  isWinner  Boolean     @default(false)
+
+  session   GameSession @relation(fields: [sessionId], references: [id])
+  user      User        @relation(fields: [userId], references: [id])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserXP {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  xp        Int      @default(0)
+  level     Int      @default(1)
+  streak    Int      @default(0)
+  lastActive DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
