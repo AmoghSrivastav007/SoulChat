@@ -7,15 +7,16 @@ function makeStore() {
 
   // Simple Redis store compatible with express-rate-limit v7
   const prefix = "rl:";
+  const redisClient = redis; // Capture in closure to satisfy TypeScript
   return {
     async increment(key: string) {
       try {
         const redisKey = `${prefix}${key}`;
-        const current = await redis.incr(redisKey);
+        const current = await redisClient.incr(redisKey);
         if (current === 1) {
-          await redis.expire(redisKey, 60);
+          await redisClient.expire(redisKey, 60);
         }
-        const ttl = await redis.ttl(redisKey);
+        const ttl = await redisClient.ttl(redisKey);
         return {
           totalHits: current,
           resetTime: new Date(Date.now() + ttl * 1000)
@@ -30,14 +31,14 @@ function makeStore() {
     },
     async decrement(key: string) {
       try {
-        await redis.decr(`${prefix}${key}`);
+        await redisClient.decr(`${prefix}${key}`);
       } catch {
         // Ignore errors
       }
     },
     async resetKey(key: string) {
       try {
-        await redis.del(`${prefix}${key}`);
+        await redisClient.del(`${prefix}${key}`);
       } catch {
         // Ignore errors
       }

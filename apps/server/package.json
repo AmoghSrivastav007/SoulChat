@@ -9,6 +9,7 @@
     "lint": "echo \"No linter configured\"",
     "type-check": "tsc --noEmit",
     "format": "echo \"No formatter configured\"",
+    "postinstall": "prisma generate --schema prisma/schema.prisma",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma",
     "prisma:seed": "tsx prisma/seed.ts"
@@ -50,6 +51,8 @@
     "@types/morgan": "^1.9.9",
     "@types/node": "^20.12.7",
     "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^8.0.0",
+    "@types/web-push": "^3.6.4",
     "prisma": "^5.13.0",
     "tsx": "^4.9.3",
     "typescript": "^5.4.0"
