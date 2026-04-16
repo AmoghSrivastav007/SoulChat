@@ -59,8 +59,7 @@ export async function createPresignedUpload(input: {
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
-    ContentType: input.mimeType,
-    ContentLengthRange: [1, maxSize] as unknown as undefined // hint for client
+    ContentType: input.mimeType
   });
 
   const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 60 * 5 });

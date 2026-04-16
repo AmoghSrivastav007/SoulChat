@@ -19,7 +19,13 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     const state = typeof session.state === "object" && session.state !== null ? session.state : {};
     const updated = await prisma.gameSession.update({
       where: { id: gameId },
-      data: { state: { ...(state as Record<string, unknown>), lastMove: move, lastPlayerId: userId } }
+      data: { 
+        state: { 
+          ...(state as Record<string, unknown>), 
+          lastMove: move as any, 
+          lastPlayerId: userId 
+        } as any
+      }
     });
 
     io.to(`game:${gameId}`).emit("game_update", { game: updated });
